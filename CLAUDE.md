@@ -20,6 +20,7 @@ proposal.md is implemented, and that is the whole application:
 
 - [src/app.controller.ts](src/app.controller.ts) — one `POST /` route; hands `@Body()` to the service and replies `{ result: 'ok' }` (Overland retries the batch unless it sees that).
 - [src/app.service.ts](src/app.service.ts) — opens the DB at `DB_PATH` (default `locations.db` in cwd), creates `locations (id, body TEXT, createdAt TEXT)` if absent, and inserts `JSON.stringify(body)` plus an ISO timestamp.
+- [src/main.ts](src/main.ts) — `app.useBodyParser('json', { limit: '20mb' })`. Required: Overland batches exceed express's 100kb default and were rejected with `PayloadTooLargeError`. Use `useBodyParser` rather than `app.use(json(...))` — Nest registers its own parser during `create()`, so an extra `app.use` never runs, and anything added after `app.listen()` is too late regardless.
 
 There is nothing else, by design. No read endpoint, no auth, no validation — Overland's `?api_key=` query param is accepted and ignored.
 
@@ -62,4 +63,17 @@ package.json — better-sqlite3, @types/better-sqlite3를 실제 설치 버전�
 검증: npm run build 통과, npm run lint 통과(경고 1건은 스타터 원본 main.ts의 floating promise), npm run test:e2e 1/1 통과. 추가로 빌드본을 실제 실행해 Overland 형식 payload를 POST한 뒤 sqlite에서 행을 확인했습니다 — body가 원본 JSON 문자열 그대로, createdAt이 함께 저장됩니다.
 
 CLAUDE.md의 "Current state" 섹션도 구현 완료 상태로 갱신했습니다.
+```
+### 260725 08:45
+
+```
+PayloadTooLargeError 수정. Overland 배치(103KB)가 express 기본 100kb 한도를 초과.
+
+src/main.ts — app.useBodyParser("json", { limit: "20mb" })를 create() 직후 listen() 앞에 배치.
+직전 시도(app.use(json({limit})) 를 listen() 뒤에 호출)가 동작하지 않은 이유: Nest가 create() 시점에
+자체 body parser를 이미 등록하므로 뒤에 쌓은 파서에 도달하기 전에 예외가 발생하고, listen() 이후 추가한
+미들웨어는 애초에 적용되지 않음. urlencoded 파서는 Overland가 JSON만 보내므로 제거.
+
+검증: 244KB payload를 실제 기동한 서버에 POST → HTTP 201 {"result":"ok"}, sqlite에 length 244115로
+원본 그대로 저장(locations 1200건) 확인. build/lint/e2e 통과.
 ```
