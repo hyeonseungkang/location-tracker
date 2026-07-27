@@ -1,9 +1,8 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Location } from './location.entity';
 import { ConfigModule } from '@nestjs/config';
+import { LocationModule } from './location/location.module';
 
 @Module({
   imports: [
@@ -14,8 +13,7 @@ import { ConfigModule } from '@nestjs/config';
       synchronize: true,
     }),
     ConfigModule.forRoot(),
+    LocationModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
