@@ -16,7 +16,7 @@ export class LocationController {
   @HttpCode(HttpStatus.CREATED)
   async receive(@Body() body: unknown) {
     await this.locationService.save(body);
-    return;
+    return { result: 'ok' };
   }
 
   @Get()
