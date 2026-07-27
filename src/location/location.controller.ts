@@ -23,9 +23,4 @@ export class LocationController {
   async locations() {
     return this.locationService.getAll();
   }
-
-  @Get('geojsons')
-  async geojsons() {
-    return this.locationService.geojsons();
-  }
 }
