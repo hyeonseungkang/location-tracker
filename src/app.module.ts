@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Location } from './location.entity';
+import { Location } from './location/location.entity';
 import { ConfigModule } from '@nestjs/config';
 import { LocationModule } from './location/location.module';
 
