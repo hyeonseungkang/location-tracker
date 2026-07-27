@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
 } from '@nestjs/common';
 import { LocationService } from './location.service';
@@ -22,5 +23,20 @@ export class LocationController {
   @Get('/')
   async locations() {
     return this.locationService.getAll();
+  }
+
+  @Get('/:id')
+  async location(@Param('id') id: number) {
+    return this.locationService.get(id);
+  }
+
+  @Get('/geojson')
+  async geojsons() {
+    return this.locationService.geojsons();
+  }
+
+  @Get('/geojson/:id')
+  async geojson(@Param('id') id: number) {
+    return this.locationService.geojson(id);
   }
 }

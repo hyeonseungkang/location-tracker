@@ -17,7 +17,21 @@ export class LocationService {
     });
   }
 
+  get(id: number) {
+    return this.locationRepository.findOneBy({ id });
+  }
+
   getAll() {
     return this.locationRepository.find();
+  }
+
+  async geojson(id: number) {
+    const location = await this.locationRepository.findOneBy({ id });
+    return location?.body;
+  }
+
+  async geojsons() {
+    const locations = await this.locationRepository.find();
+    return locations.map((location) => location.body);
   }
 }
