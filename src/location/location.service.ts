@@ -20,4 +20,8 @@ export class LocationService {
   getAll() {
     return this.locationRepository.find();
   }
+
+  geojsons() {
+    return this.locationRepository.find().then((locations) => locations.flat());
+  }
 }

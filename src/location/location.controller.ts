@@ -12,15 +12,20 @@ import { LocationService } from './location.service';
 export class LocationController {
   constructor(private readonly locationService: LocationService) {}
 
-  @Post()
+  @Post('/')
   @HttpCode(HttpStatus.CREATED)
   async receive(@Body() body: unknown) {
     await this.locationService.save(body);
     return { result: 'ok' };
   }
 
-  @Get()
+  @Get('/')
   async locations() {
     return this.locationService.getAll();
+  }
+
+  @Get('geojsons')
+  async geojsons() {
+    return this.locationService.geojsons();
   }
 }
