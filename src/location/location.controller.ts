@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+} from '@nestjs/common';
 import { LocationService } from './location.service';
 
 @Controller('location')
@@ -6,8 +13,10 @@ export class LocationController {
   constructor(private readonly locationService: LocationService) {}
 
   @Post()
+  @HttpCode(HttpStatus.CREATED)
   async receive(@Body() body: unknown) {
-    return this.locationService.save(body);
+    await this.locationService.save(body);
+    return;
   }
 
   @Get()
