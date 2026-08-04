@@ -4,27 +4,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-A location-tracking ingest server. The spec lives in [proposal.md](proposal.md) (Korean) and is authoritative:
+A location-tracking ingest server with additional read endpoints for GeoJSON visualization. While the original proposal.md specified a minimal scope, the current implementation includes:
 
-- **Server**: NestJS + `better-sqlite3`. **Client**: the Overland mobile app, configured to POST to this server's URL.
-- The server takes the JSON body of Overland's HTTP request and inserts it into SQLite **serialized, as-is**, alongside a `createdAt` value. No parsing, no normalization, no per-field columns.
+- **Server**: NestJS + TypeORM with better-sqlite3 adapter
+- **Client**: the Overland mobile app, configured to POST to this server's URL
+- **Storage**: The server takes the JSON body of Overland's HTTP request and inserts it into SQLite serialized, as-is, alongside a `createdAt` value
+- **Additional Features**: Read endpoints for retrieving stored data as GeoJSON for visualization
 
-Two constraints from proposal.md that override normal instincts:
+## Current State
 
-1. **Scope is locked.** Anything beyond "receive request → store raw body + createdAt" is explicitly forbidden. Do not add auth, query/read endpoints, validation DTOs, migrations tooling, config modules, or logging infrastructure unless asked.
-2. **Keep it terse.** Write the fewest lines that work; do not split logic into extra variables, helpers, or layers for their own sake. Maintainability here means "small enough to read at a glance."
+The application consists of:
 
-## Current state
+- **[src/location/location.controller.ts](src/location/location.controller.ts)** — Handles POST `/location/` endpoint for receiving Overland data and GET endpoints for retrieving stored locations as GeoJSON
+- **[src/location/location.service.ts](src/location/location.service.ts)** — Uses TypeORM repository to store `JSON.stringify(body)` plus ISO timestamp in the `locations` table
+- **[src/location/location.entity.ts](src/location/location.entity.ts)** — TypeORM entity defining the `locations` table schema
+- **[src/main.ts](src/main.ts)** — Configures body parser limit to 20mb to handle Overland's batched payloads and sets up Swagger documentation
+- **[src/app.module.ts](src/app.module.ts)** — Root module configuring TypeORM with better-sqlite3 adapter, ConfigModule, and LocationModule
 
-proposal.md is implemented, and that is the whole application:
+The database table `locations` has three columns:
+- `id`: Auto-incrementing primary key
+- `body`: TEXT column containing the complete, unmodified JSON string from Overland
+- `createdAt`: TEXT column containing ISO timestamp
 
-- [src/app.controller.ts](src/app.controller.ts) — one `POST /` route; hands `@Body()` to the service and replies `{ result: 'ok' }` (Overland retries the batch unless it sees that).
-- [src/app.service.ts](src/app.service.ts) — opens the DB at `DB_PATH` (default `locations.db` in cwd), creates `locations (id, body TEXT, createdAt TEXT)` if absent, and inserts `JSON.stringify(body)` plus an ISO timestamp.
-- [src/main.ts](src/main.ts) — `app.useBodyParser('json', { limit: '20mb' })`. Required: Overland batches exceed express's 100kb default and were rejected with `PayloadTooLargeError`. Use `useBodyParser` rather than `app.use(json(...))` — Nest registers its own parser during `create()`, so an extra `app.use` never runs, and anything added after `app.listen()` is too late regardless.
+## Scope Considerations
 
-There is nothing else, by design. No read endpoint, no auth, no validation — Overland's `?api_key=` query param is accepted and ignored.
+The original [proposal.md](proposal.md) specified a locked scope of only "receive request → store raw body + createdAt" with constraints:
+1. No auth, query/read endpoints, validation DTOs, migrations tooling, config modules, or logging infrastructure
+2. Keep implementation terse with minimal abstraction
 
-Unit tests: none. `src/app.controller.spec.ts` tested the deleted `getHello()` and was removed, so `npm test` runs with `--passWithNoTests`. The e2e spec sets `DB_PATH=:memory:` before booting the module.
+The current implementation extends beyond this scope by including:
+- GET endpoints for data retrieval (`/`, `/geojson`, `/geojson/:id`, `/:id`)
+- TypeORM abstraction layer instead of direct better-sqlite3 usage
+- Swagger/OpenAPI documentation
+- Modular architecture with LocationModule
+
+To strictly adhere to proposal.md, these extensions would need to be removed, reverting to:
+- Single AppController with POST / route
+- AppService using direct better-sqlite3 database operations
+- Removal of TypeORM, Swagger, and additional modules
 
 ## Commands
 
@@ -46,34 +63,18 @@ npm run test:e2e               # jest --config ./test/jest-e2e.json (test/*.e2e-
 - ESLint runs `recommendedTypeChecked` with Prettier as an error-level rule, so formatting violations fail lint. `no-explicit-any` is off; `no-floating-promises` and `no-unsafe-argument` are warnings only — relevant since the Overland payload is handled as untyped JSON.
 - TypeScript is `nodenext` modules with `noImplicitAny: false` and `strictNullChecks: true`. Decorator metadata is on.
 - Unit tests live beside sources in `src/`; e2e tests live in `test/` and use supertest against the bootstrapped app.
+- Database path configurable via `DB_PATH` environment variable (defaults to `data/locations.db`). E2E tests use `:memory:`.
 
-## Implement History
+## Important Implementation Details
 
-### 260725 08:06:10
+1. **Body Parser**: Critical configuration in `main.ts` - must be `app.useBodyParser('json', { limit: '20mb' })` placed AFTER `NestFactory.create()` but BEFORE `app.listen()` to handle Overland's batched payloads (>100 kb default Express limit).
 
-```
-변경 사항
-src/app.controller.ts — POST / 하나. @Body()를 서비스에 넘기고 { result: 'ok' } 반환. Overland는 이 응답을 못 받으면 배치를 재전송하므로 응답 본문은 필요합니다.
-src/app.service.ts — DB_PATH(기본 locations.db)로 DB를 열고, 없으면 locations (id, body TEXT, createdAt TEXT) 생성, JSON.stringify(body) + ISO 타임스탬프를 insert.
-package.json — better-sqlite3, @types/better-sqlite3를 실제 설치 버전으로 등재 (기존에 node_modules에만 있어서 재설치 시 사라질 상태였음).
-스코프 밖이라 하지 않은 것: 조회 엔드포인트, 인증(?api_key=는 받아서 무시), DTO 검증, 마이그레이션. body는 필드 분해 없이 직렬화 문자열 그대로 한 컬럼에 넣습니다.
+2. **Data Flow**: 
+   - Overland POSTs JSON to `/location/`
+   - Controller receives `@Body() body: unknown` 
+   - Service saves `JSON.stringify(body)` + `new Date().toISOString()` to locations table
+   - Returns `{ result: 'ok' }` to stop Overland retries
 
-정리한 것 (알려드립니다): src/app.controller.spec.ts는 삭제된 getHello()를 테스트하고 있어 제거했습니다. 그 결과 src에 unit spec이 하나도 없어 npm test가 exit 1이 되기에 test 스크립트에 --passWithNoTests를 붙였습니다. e2e spec은 POST / → {result:'ok'} 검증으로 바꾸고 DB_PATH=:memory:를 쓰도록 했습니다.
+3. **GeoJSON Endpoints**: While stored as raw JSON strings, GET endpoints parse bodies back to GeoJSON objects for visualization, but this does not affect the storage layer which preserves payloads exactly as received.
 
-검증: npm run build 통과, npm run lint 통과(경고 1건은 스타터 원본 main.ts의 floating promise), npm run test:e2e 1/1 통과. 추가로 빌드본을 실제 실행해 Overland 형식 payload를 POST한 뒤 sqlite에서 행을 확인했습니다 — body가 원본 JSON 문자열 그대로, createdAt이 함께 저장됩니다.
-
-CLAUDE.md의 "Current state" 섹션도 구현 완료 상태로 갱신했습니다.
-```
-### 260725 08:45
-
-```
-PayloadTooLargeError 수정. Overland 배치(103KB)가 express 기본 100kb 한도를 초과.
-
-src/main.ts — app.useBodyParser("json", { limit: "20mb" })를 create() 직후 listen() 앞에 배치.
-직전 시도(app.use(json({limit})) 를 listen() 뒤에 호출)가 동작하지 않은 이유: Nest가 create() 시점에
-자체 body parser를 이미 등록하므로 뒤에 쌓은 파서에 도달하기 전에 예외가 발생하고, listen() 이후 추가한
-미들웨어는 애초에 적용되지 않음. urlencoded 파서는 Overland가 JSON만 보내므로 제거.
-
-검증: 244KB payload를 실제 기동한 서버에 POST → HTTP 201 {"result":"ok"}, sqlite에 length 244115로
-원본 그대로 저장(locations 1200건) 확인. build/lint/e2e 통과.
-```
+4. **Development Guidance**: When making changes, prioritize maintaining the core storage functionality exactly as specified—receiving requests and storing raw bodies with timestamps—while considering whether additional features align with project goals.

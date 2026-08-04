@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { LocationService } from './location.service';
 
-@Controller('location')
+@Controller('/location')
 export class LocationController {
   constructor(private readonly locationService: LocationService) {}
 
@@ -25,11 +25,6 @@ export class LocationController {
     return this.locationService.getAll();
   }
 
-  @Get('/:id')
-  async location(@Param('id') id: number) {
-    return this.locationService.get(id);
-  }
-
   @Get('/geojson')
   async geojsons() {
     return this.locationService.geojsons();
@@ -38,5 +33,10 @@ export class LocationController {
   @Get('/geojson/:id')
   async geojson(@Param('id') id: number) {
     return this.locationService.geojson(id);
+  }
+
+  @Get('/:id')
+  async location(@Param('id') id: number) {
+    return this.locationService.get(id);
   }
 }

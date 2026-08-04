@@ -1,14 +1,14 @@
-import { Test, TestingModule } from "@nestjs/testing";
-import { INestApplication } from "@nestjs/common";
-import request from "supertest";
-import { App } from "supertest/types";
-import { AppModule } from "./../src/app.module";
+import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import { App } from 'supertest/types';
+import { AppModule } from './../src/app.module';
 
-describe("AppController (e2e)", () => {
+describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeEach(async () => {
-    process.env.DB_PATH = ":memory:";
+    process.env.DB_PATH = ':memory:';
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -17,12 +17,19 @@ describe("AppController (e2e)", () => {
     await app.init();
   });
 
-  it("/ (POST)", () => {
+  it('/ (POST)', () => {
     return request(app.getHttpServer())
-      .post("/")
-      .send({ locations: [{ type: "Feature" }] })
+      .post('/')
+      .send({ locations: [{ type: 'Feature' }] })
       .expect(201)
-      .expect({ result: "ok" });
+      .expect({ result: 'ok' });
+  });
+
+  it('/location/geojson', () => {
+    return request(app.getHttpServer())
+      .get('/location/geojson')
+      .expect(200)
+      .expect([]);
   });
 
   afterEach(async () => {
